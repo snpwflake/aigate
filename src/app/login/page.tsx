@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotification } from "@/hooks/useNotification";
 
-export default function LoginPage() {
+// Компонент с useSearchParams обернутый в Suspense
+function LoginForm() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -87,11 +87,13 @@ export default function LoginPage() {
         }, 1000);
       } else {
         if (result.errors) {
-          result.errors.forEach((error: any) => {
-            showFieldError(error.path || error.param, error.msg);
-          });
+          result.errors.forEach(
+            (error: { path?: string; param?: string; msg: string }) => {
+              showFieldError(error.path || error.param || "general", error.msg);
+            }
+          );
         } else {
-          showNotification(result.message, "error");
+          showNotification(result.message || "Кіру қатесі", "error");
         }
       }
     } catch (error) {
@@ -243,5 +245,23 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading компонент для Suspense
+function LoginLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary-500 to-accent-500">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+    </div>
+  );
+}
+
+// Главный компонент страницы
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLoading />}>
+      <LoginForm />
+    </Suspense>
   );
 }

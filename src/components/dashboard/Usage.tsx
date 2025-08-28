@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BarChart3, Filter, Download } from "lucide-react";
 
 interface UsageStats {
@@ -37,11 +37,7 @@ export default function Usage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  useEffect(() => {
-    loadUsageData();
-  }, [selectedModel, dateFrom, dateTo]);
-
-  const loadUsageData = async () => {
+  const loadUsageData = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -66,7 +62,11 @@ export default function Usage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedModel, dateFrom, dateTo]);
+
+  useEffect(() => {
+    loadUsageData();
+  }, [loadUsageData]);
 
   const models = [
     "gpt-4o-mini",
@@ -135,7 +135,7 @@ export default function Usage() {
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => setDateeTo(e.target.value)}
+              onChange={(e) => setDateTo(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>

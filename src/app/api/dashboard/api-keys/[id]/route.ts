@@ -3,10 +3,11 @@ import { pool } from "@/lib/database";
 import { authenticateRequest } from "@/lib/auth";
 import { ApiResponse } from "@/types/api";
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
+export async function DELETE(request: NextRequest, context: RouteParams) {
   try {
     const auth = await authenticateRequest(request);
     if (!auth) {
@@ -19,8 +20,8 @@ export async function DELETE(
       );
     }
 
+    const { id: keyId } = await context.params;
     const userId = auth.userId;
-    const keyId = params.id;
 
     console.log("🗑️ Deleting API key:", keyId, "for user:", userId);
 
@@ -32,7 +33,7 @@ export async function DELETE(
         [keyId, userId]
       );
 
-      if ((existingKey as any[]).length === 0) {
+      if ((existingKey as Array<{ id: string }>).length === 0) {
         return NextResponse.json<ApiResponse>(
           {
             success: false,
@@ -69,10 +70,7 @@ export async function DELETE(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, context: RouteParams) {
   try {
     const auth = await authenticateRequest(request);
     if (!auth) {
@@ -87,8 +85,8 @@ export async function PUT(
 
     const body = await request.json();
     const { name } = body;
+    const { id: keyId } = await context.params;
     const userId = auth.userId;
-    const keyId = params.id;
 
     if (!name || name.trim().length === 0) {
       return NextResponse.json<ApiResponse>(
@@ -108,7 +106,7 @@ export async function PUT(
         [keyId, userId]
       );
 
-      if ((existingKey as any[]).length === 0) {
+      if ((existingKey as Array<{ id: string }>).length === 0) {
         return NextResponse.json<ApiResponse>(
           {
             success: false,

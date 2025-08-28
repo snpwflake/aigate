@@ -25,7 +25,7 @@ export function generateToken(user: User): string {
 export function verifyToken(token: string): AuthToken | null {
   try {
     return jwt.verify(token, JWT_SECRET) as AuthToken;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -66,10 +66,19 @@ export async function comparePassword(
   return bcrypt.compare(password, hash);
 }
 
-export async function authenticateApiKey(apiKey: string) {
+export interface ApiKeyData {
+  id: number;
+  user_id: number;
+  name: string;
+  balance: string;
+}
+
+export async function authenticateApiKey(
+  apiKey: string
+): Promise<ApiKeyData | null> {
   const connection = await pool.getConnection();
   try {
-    const [apiKeys] = await connection.execute(
+    const [apiKeys] = (await connection.execute(
       `
       SELECT ak.id, ak.user_id, ak.name, u.balance 
       FROM api_keys ak 
@@ -77,13 +86,13 @@ export async function authenticateApiKey(apiKey: string) {
       WHERE ak.api_key = ? AND ak.is_active = TRUE
     `,
       [apiKey]
-    );
+    )) as [ApiKeyData[], unknown];
 
-    if ((apiKeys as any[]).length === 0) {
+    if (apiKeys.length === 0) {
       return null;
     }
 
-    const apiKeyData = (apiKeys as any[])[0];
+    const apiKeyData = apiKeys[0];
 
     // Update last used timestamp
     await connection.execute(

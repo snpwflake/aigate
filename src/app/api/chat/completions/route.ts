@@ -15,6 +15,18 @@ import {
   ModelName,
 } from "@/types/api";
 
+// Типы для базы данных
+interface ApiKeyData {
+  id: number;
+  user_id: number;
+  name: string;
+  balance: string;
+}
+
+interface UserRow {
+  balance: string;
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
@@ -97,11 +109,13 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json<ChatCompletionResponse>(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ Chat completion error:", error);
 
-    if (error.message?.startsWith("INSUFFICIENT_BALANCE:")) {
-      const [, requiredBalance, currentBalance] = error.message.split(":");
+    if (
+      error instanceof Error &&
+      error.message?.startsWith("INSUFFICIENT_BALANCE:")
+    ) {
       return NextResponse.json<OpenAIError>(
         {
           error: {
@@ -113,9 +127,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (error.response) {
+    if (axios.isAxiosError(error) && error.response) {
       const status = error.response.status;
-      const errorData = error.response.data;
+      const errorData = error.response.data as { error?: { message?: string } };
 
       return NextResponse.json<OpenAIError>(
         {
@@ -128,7 +142,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (error.code === "ECONNABORTED") {
+    if (axios.isAxiosError(error) && error.code === "ECONNABORTED") {
       return NextResponse.json<OpenAIError>(
         {
           error: {
@@ -153,8 +167,8 @@ export async function POST(request: NextRequest) {
 }
 
 async function processChatRequest(
-  apiKeyData: any,
-  messages: any[],
+  apiKeyData: ApiKeyData,
+  messages: Array<{ role: string; content: string }>,
   model: ModelName,
   maxTokens: number,
   temperature: number,
@@ -220,16 +234,16 @@ async function processChatRequest(
 
   try {
     // Get current balance
-    const [currentUser] = await connection.execute(
+    const [currentUser] = (await connection.execute(
       "SELECT balance FROM users WHERE id = ? FOR UPDATE",
       [userId]
-    );
+    )) as [UserRow[], unknown];
 
-    if ((currentUser as any[]).length === 0) {
+    if (currentUser.length === 0) {
       throw new Error("User not found");
     }
 
-    const currentBalance = parseFloat((currentUser as any[])[0].balance);
+    const currentBalance = parseFloat(currentUser[0].balance);
     const newBalance = currentBalance - actualCost;
 
     if (newBalance < 0) {
@@ -258,7 +272,7 @@ async function processChatRequest(
         totalTokens,
         actualCost,
         Date.now() - startTime,
-        request.ip || "unknown",
+        getClientIP(request),
       ]
     );
 
@@ -314,4 +328,27 @@ async function processChatRequest(
   } finally {
     connection.release();
   }
+}
+
+// Утилита для получения IP адреса
+function getClientIP(request: NextRequest): string {
+  // Проверяем различные заголовки для получения реального IP
+  const forwarded = request.headers.get("x-forwarded-for");
+  const realIP = request.headers.get("x-real-ip");
+  const cfConnectingIP = request.headers.get("cf-connecting-ip");
+
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+
+  if (realIP) {
+    return realIP;
+  }
+
+  if (cfConnectingIP) {
+    return cfConnectingIP;
+  }
+
+  // Fallback
+  return "unknown";
 }
